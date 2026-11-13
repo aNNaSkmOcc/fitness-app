@@ -175,16 +175,62 @@ function renderHome() {
   const coach = cache.coach?.message ? `<div class="card coach"><div class="label">Coach</div>${esc(cache.coach.message)}</div>` : '';
   const dayBtns = Object.entries(plan.days).map(([k, d]) =>
     `<button class="btn day-btn ${k === sug ? 'primary suggest' : ''}" data-day="${k}">Tag ${k}<small>${d.exercises.length} Übungen${k === sug ? ' · dran' : ''}</small></button>`).join('');
-  const weekAgo = Date.now() - 7 * 864e5;
-  const thisWeek = s.filter((x) => new Date(x.date) > weekAgo).length;
   view.innerHTML = `${coach}
     <div class="row2">${dayBtns}</div>
-    <div class="card"><div class="muted">Letzte Einheit</div>${last ? `${fmtDate(last.date)} · Tag ${esc(last.day)}` : 'noch keine'}
-      <div class="muted" style="margin-top:6px">Letzte 7 Tage: ${thisWeek} Einheit${thisWeek === 1 ? '' : 'en'}</div></div>
+    <div class="card" id="week"></div>
+    <div class="card"><div class="muted">Letzte Einheit</div>${last ? `${fmtDate(last.date)} · Tag ${esc(last.day)}` : 'noch keine'}</div>
     <button class="btn" id="toHist">📈 Verlauf</button>${footer()}`;
   view.querySelectorAll('[data-day]').forEach((b) => (b.onclick = () => startWorkout(b.dataset.day)));
   $('#toHist').onclick = () => go('history');
+  renderWeek();
   bindFooter();
+}
+
+/* ---------------- Wochenkalender ---------------- */
+let weekOffset = 0, weekSel = null;
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function mondayOf(offset) {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + offset * 7);
+  return d;
+}
+function kw(d) { // ISO-Kalenderwoche
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
+}
+function renderWeek() {
+  const box = $('#week'); if (!box) return;
+  const mon = mondayOf(weekOffset);
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
+  const byDay = {};
+  allSessions().forEach((x) => { const k = dayKey(new Date(x.date)); (byDay[k] = byDay[k] || []).push(x); });
+  const today = dayKey(new Date());
+  const count = days.reduce((n, d) => n + (byDay[dayKey(d)]?.length || 0), 0);
+  const sun = days[6];
+  const label = weekOffset === 0 ? 'Diese Woche' : weekOffset === -1 ? 'Letzte Woche' : `KW ${kw(mon)}`;
+  const range = `${mon.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} – ${sun.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`;
+  const sel = weekSel && days.some((d) => dayKey(d) === weekSel) ? weekSel : null;
+  box.innerHTML = `
+    <div class="wk-head">
+      <button class="wk-nav" data-w="-1" aria-label="Vorherige Woche">‹</button>
+      <div class="wk-title"><strong>${label}</strong><span class="muted">KW ${kw(mon)} · ${range}</span></div>
+      <button class="wk-nav" data-w="1" aria-label="Nächste Woche" ${weekOffset >= 0 ? 'disabled' : ''}>›</button>
+    </div>
+    <div class="wk-grid">${days.map((d) => {
+      const k = dayKey(d), ses = byDay[k] || [];
+      const cls = ['wk-day', k === today ? 'today' : '', ses.length ? 'trained' : '', k === sel ? 'sel' : '', k > today ? 'future' : ''].join(' ');
+      return `<button class="${cls}" data-k="${k}">
+        <span class="wk-wd">${d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span>
+        <span class="wk-dn">${d.getDate()}</span>
+        <span class="wk-tags">${ses.map((x) => `<b class="tag tag-${esc(x.day)}">${esc(x.day)}</b>`).join('') || '<i>·</i>'}</span>
+      </button>`;
+    }).join('')}</div>
+    <div class="wk-sum muted">${count} Einheit${count === 1 ? '' : 'en'} ${weekOffset === 0 ? 'diese Woche' : 'in dieser Woche'}</div>
+    ${sel ? `<div class="wk-detail">${(byDay[sel] || []).map((x) => `
+      <div><strong>Tag ${esc(x.day)}</strong> · ${new Date(x.date).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr${x.durationMin ? ` · ${x.durationMin} min` : ''} · ${x.entries.length} Übung${x.entries.length === 1 ? "" : "en"}${x.note ? `<div class="muted">${esc(x.note)}</div>` : ''}</div>`).join('') || '<span class="muted">Kein Training an diesem Tag.</span>'}</div>` : ''}`;
+  box.querySelectorAll('[data-w]').forEach((b) => (b.onclick = () => { weekOffset = Math.min(0, weekOffset + +b.dataset.w); weekSel = null; renderWeek(); }));
+  box.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => { weekSel = weekSel === b.dataset.k ? null : b.dataset.k; renderWeek(); }));
 }
 const footer = () => `<div class="foot"><button class="link" id="toSettings">Einstellungen</button> · <button class="link" id="doSync">Jetzt synchronisieren</button></div>`;
 function bindFooter() { $('#toSettings').onclick = () => go('settings'); $('#doSync').onclick = () => sync(); }

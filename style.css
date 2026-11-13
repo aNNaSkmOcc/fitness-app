@@ -82,3 +82,26 @@ table.hist td:first-child { color: var(--muted); white-space: nowrap; width: 1%;
 .trend-up { color: var(--good); } .trend-down { color: var(--bad); }
 .foot { text-align: center; margin-top: 16px; }
 .foot a, .link { color: var(--muted); font-size: 14px; background: none; border: 0; text-decoration: underline; }
+
+/* Wochenkalender */
+.wk-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.wk-title { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.wk-title .muted { font-size: 12px; }
+.wk-nav { width: 40px; height: 40px; border: 0; border-radius: 10px; background: var(--card2); color: var(--text); font-size: 24px; line-height: 1; }
+.wk-nav:disabled { opacity: .3; }
+.wk-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.wk-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0 6px; border: 2px solid transparent;
+  border-radius: 10px; background: var(--card2); color: var(--text); font: inherit; min-width: 0; }
+.wk-day.today { border-color: var(--accent); }
+.wk-day.sel { background: #2e3742; }
+.wk-day.future { opacity: .45; }
+.wk-wd { font-size: 11px; color: var(--muted); }
+.wk-dn { font-size: 16px; font-weight: 600; }
+.wk-tags { display: flex; gap: 2px; min-height: 20px; align-items: center; }
+.wk-tags i { color: #46505d; font-style: normal; }
+.tag { display: inline-block; min-width: 20px; padding: 1px 4px; border-radius: 6px; font-size: 12px; font-weight: 700; text-align: center; }
+.tag-A { background: var(--accent); color: #04121f; }
+.tag-B { background: var(--good); color: #04140c; }
+.tag-C { background: var(--warn); color: #1d1300; }
+.wk-sum { text-align: center; margin-top: 8px; }
+.wk-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a323c; font-size: 14px; display: grid; gap: 8px; }
