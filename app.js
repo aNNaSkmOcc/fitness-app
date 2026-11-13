@@ -155,35 +155,72 @@ async function keepAwake() { try { wakeLock = await navigator.wakeLock?.request(
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && draft) keepAwake(); });
 
 /* ---------------- Views ---------------- */
-let route = 'home', routeArg = null;
+let route = draft ? 'workout' : 'home', routeArg = null, clockTimer = null;
 function go(r, arg = null) { route = r; routeArg = arg; render(); window.scrollTo(0, 0); }
 $('#navBack').onclick = () => go('home');
 
 function render() {
-  $('#navBack').classList.toggle('hidden', route === 'home' || route === 'workout');
+  clearInterval(clockTimer);
+  $('#navBack').classList.toggle('hidden', route === 'home');
   if (!settings.token && route !== 'settings') return renderSettings(true);
-  ({ home: renderHome, workout: renderWorkout, history: renderHistory, settings: renderSettings, done: renderDone }[route] || renderHome)();
+  ({ home: renderHome, preview: renderPreview, workout: renderWorkout, history: renderHistory, settings: renderSettings, done: renderDone }[route] || renderHome)();
 }
+
+const fmtTime = (iso) => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+const elapsedMin = () => Math.max(0, Math.floor((Date.now() - new Date(draft.startedAt)) / 60000));
+function runningInfo() {
+  const sets = draft.entries.reduce((n, e) => n + e.sets.filter((s) => s.ok).length, 0);
+  const all = draft.entries.reduce((n, e) => n + e.sets.length, 0);
+  return `seit ${fmtTime(draft.startedAt)} Uhr · <span class="elapsed">${elapsedMin()}</span> min · ${sets}/${all} Sätze`;
+}
+function tickClock() { clearInterval(clockTimer); clockTimer = setInterval(() => document.querySelectorAll('.elapsed').forEach((el) => (el.textContent = elapsedMin())), 20000); }
 
 function renderHome() {
   $('#title').textContent = 'Training';
-  if (draft) return go('workout');
   const plan = cache.plan;
   if (!plan) { view.innerHTML = `<div class="card">Noch keine Daten. Verbindung prüfen und neu laden.</div><button class="btn" id="retry">Neu laden</button>${footer()}`; $('#retry').onclick = () => sync(); bindFooter(); return; }
   const sug = suggestedDay();
   const s = allSessions(); const last = s[s.length - 1];
   const coach = cache.coach?.message ? `<div class="card coach"><div class="label">Coach</div>${esc(cache.coach.message)}</div>` : '';
-  const dayBtns = Object.entries(plan.days).map(([k, d]) =>
-    `<button class="btn day-btn ${k === sug ? 'primary suggest' : ''}" data-day="${k}">Tag ${k}<small>${d.exercises.length} Übungen${k === sug ? ' · dran' : ''}</small></button>`).join('');
-  view.innerHTML = `${coach}
+  const running = draft ? `<div class="card live"><div class="live-head"><span class="dot"></span><strong>Tag ${esc(draft.day)} läuft</strong></div>
+      <div class="muted">${runningInfo()}</div>
+      <button class="btn good" id="resume" style="margin:10px 0 0">Weiter trainieren</button></div>` : '';
+  const dayBtns = Object.entries(plan.days).map(([k, d]) => {
+    const isRun = draft?.day === k, mark = draft ? (isRun ? ' · läuft' : '') : (k === sug ? ' · dran' : '');
+    const cls = isRun ? 'good' : !draft && k === sug ? 'primary suggest' : '';
+    return `<button class="btn day-btn ${cls}" data-day="${k}">Tag ${k}<small>${d.exercises.length} Übungen${mark}</small></button>`;
+  }).join('');
+  view.innerHTML = `${running}${coach}
     <div class="row2">${dayBtns}</div>
     <div class="card" id="week"></div>
     <div class="card"><div class="muted">Letzte Einheit</div>${last ? `${fmtDate(last.date)} · Tag ${esc(last.day)}` : 'noch keine'}</div>
     <button class="btn" id="toHist">📈 Verlauf</button>${footer()}`;
-  view.querySelectorAll('[data-day]').forEach((b) => (b.onclick = () => startWorkout(b.dataset.day)));
+  view.querySelectorAll('[data-day]').forEach((b) => (b.onclick = () => go(draft?.day === b.dataset.day ? 'workout' : 'preview', b.dataset.day)));
+  if (draft) { $('#resume').onclick = () => go('workout'); tickClock(); }
   $('#toHist').onclick = () => go('history');
   renderWeek();
   bindFooter();
+}
+
+// Vorschau eines Tages: Übungen + Ziele ansehen, dann bewusst "Start" drücken
+function renderPreview() {
+  const day = routeArg, d = cache.plan?.days?.[day];
+  if (!d) return go('home');
+  $('#title').textContent = `Tag ${day}`;
+  const blocked = draft && draft.day !== day;
+  const list = d.exercises.map((ex) => {
+    const t = targetFor(ex);
+    return `<tr><td>${esc(ex.name)}</td><td>${ex.sets}× ${fmtKg(t.kg)} kg × ${t.reps}</td></tr>`;
+  }).join('');
+  view.innerHTML = `
+    ${blocked ? `<div class="card live"><div class="live-head"><span class="dot"></span><strong>Tag ${esc(draft.day)} läuft noch</strong></div>
+      <div class="muted">Erst Tag ${esc(draft.day)} speichern oder verwerfen, dann kannst du Tag ${esc(day)} starten.</div>
+      <button class="btn good" id="resume" style="margin:10px 0 0">Zu Tag ${esc(draft.day)}</button></div>` : ''}
+    <div class="card"><h2>${esc(d.title || 'Tag ' + day)}</h2><div class="muted">${d.exercises.length} Übungen · Ziele für heute</div>
+      <table class="hist plan" style="margin-top:8px">${list}</table></div>
+    ${blocked ? '' : '<button class="btn primary" id="start">▶ Start</button>'}`;
+  if (blocked) $('#resume').onclick = () => go('workout');
+  else $('#start').onclick = () => startWorkout(day);
 }
 
 /* ---------------- Wochenkalender ---------------- */
@@ -250,9 +287,9 @@ function startWorkout(day) {
 function renderWorkout() {
   if (!draft) return go('home');
   const plan = cache.plan.days[draft.day];
-  $('#title').textContent = `Tag ${draft.day}`;
+  $('#title').textContent = `Tag ${draft.day} · läuft`;
   const exById = Object.fromEntries(plan.exercises.map((e) => [e.id, e]));
-  view.innerHTML = draft.entries.map((en, i) => {
+  view.innerHTML = `<div class="card live sticky-live"><div class="live-row"><div><div class="live-head"><span class="dot"></span><strong>Tag ${esc(draft.day)} läuft</strong></div><div class="muted">${runningInfo()}</div></div><button class="btn good small" id="finishTop">Speichern</button></div></div>` + draft.entries.map((en, i) => {
     const ex = exById[en.id] || { repsMin: '', repsMax: '', rest: 90, hint: '' };
     const last = lastEntry(en.id);
     const t = en.target;
@@ -302,6 +339,8 @@ function renderWorkout() {
   });
   $('#note').oninput = (e) => { draft.note = e.target.value; save(LS.draft, draft); };
   $('#finish').onclick = finishWorkout;
+  $('#finishTop').onclick = finishWorkout;
+  tickClock();
   $('#cancel').onclick = () => { if (confirm('Einheit wirklich verwerfen? Die eingetragenen Sätze gehen verloren.')) { draft = null; localStorage.removeItem(LS.draft); stopRest(); go('home'); } };
 }
 

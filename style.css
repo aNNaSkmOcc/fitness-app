@@ -105,3 +105,15 @@ table.hist td:first-child { color: var(--muted); white-space: nowrap; width: 1%;
 .tag-C { background: var(--warn); color: #1d1300; }
 .wk-sum { text-align: center; margin-top: 8px; }
 .wk-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2a323c; font-size: 14px; display: grid; gap: 8px; }
+
+/* Laufendes Training */
+.live { border-left: 4px solid var(--good); }
+.live-head { display: flex; align-items: center; gap: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); animation: pulse 1.6s infinite; flex: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+.live-row { display: flex; align-items: center; gap: 10px; }
+.live-row > div { flex: 1; min-width: 0; }
+.live-row .btn { width: auto; margin: 0; padding: 12px 16px; font-weight: 600; }
+.sticky-live { position: sticky; top: calc(54px + env(safe-area-inset-top)); z-index: 4; box-shadow: 0 6px 14px rgba(0,0,0,.35); }
+table.plan td:first-child { white-space: normal; width: auto; color: var(--text); }
+table.plan td:last-child { white-space: nowrap; text-align: right; color: var(--muted); }
