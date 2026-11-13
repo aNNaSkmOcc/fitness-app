@@ -284,6 +284,12 @@ function startWorkout(day) {
   save(LS.draft, draft); keepAwake(); go('workout');
 }
 
+const openHints = new Set();
+let animStops = [];
+function mountAnims() {
+  animStops.forEach((s) => s && s()); animStops = [];
+  document.querySelectorAll('.hint:not(.hidden) [data-anim]').forEach((el) => animStops.push(ANIM.mount(el, el.dataset.anim)));
+}
 function renderWorkout() {
   if (!draft) return go('home');
   const plan = cache.plan.days[draft.day];
@@ -306,7 +312,7 @@ function renderWorkout() {
           <button class="check" data-act="ok">✓</button>
         </div>`).join('')}
       <div class="ex-actions"><button class="chip" data-act="add">+ Satz</button>${en.sets.length > 1 ? '<button class="chip" data-act="del">− Satz</button>' : ''}<button class="chip" data-act="hint">Technik</button></div>
-      <div class="hint hidden">${esc(ex.hint)}</div>
+      <div class="hint ${openHints.has(en.id) ? '' : 'hidden'}">${ANIM.has(en.id) ? '<div class="anim" data-anim="' + esc(en.id) + '"></div>' : ''}${esc(ex.hint)}</div>
     </div>`;
   }).join('') + `
     <div class="card"><label for="note">Notiz zur Einheit</label><textarea id="note" rows="2" placeholder="z. B. Beine schwer, schlecht geschlafen">${esc(draft.note)}</textarea></div>
@@ -326,7 +332,7 @@ function renderWorkout() {
       if (act === 'ok') { s.ok = !s.ok; if (s.ok) { startRest(ex.rest || 90); const nxt = en.sets.find((x) => !x.ok); if (nxt && nxt !== s && (nxt.kg == null)) nxt.kg = s.kg; } }
       if (act === 'add') { const l = en.sets[en.sets.length - 1]; en.sets.push({ kg: l.kg, reps: l.reps, ok: false }); }
       if (act === 'del') en.sets.pop();
-      if (act === 'hint') { card.querySelector('.hint').classList.toggle('hidden'); return; }
+      if (act === 'hint') { openHints.has(en.id) ? openHints.delete(en.id) : openHints.add(en.id); }
       save(LS.draft, draft); const y = window.scrollY; renderWorkout(); window.scrollTo(0, y);
     });
     card.addEventListener('change', (ev) => {
@@ -340,6 +346,7 @@ function renderWorkout() {
   $('#note').oninput = (e) => { draft.note = e.target.value; save(LS.draft, draft); };
   $('#finish').onclick = finishWorkout;
   $('#finishTop').onclick = finishWorkout;
+  mountAnims();
   tickClock();
   $('#cancel').onclick = () => { if (confirm('Einheit wirklich verwerfen? Die eingetragenen Sätze gehen verloren.')) { draft = null; localStorage.removeItem(LS.draft); stopRest(); go('home'); } };
 }

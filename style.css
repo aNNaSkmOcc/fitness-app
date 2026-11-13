@@ -117,3 +117,27 @@ table.hist td:first-child { color: var(--muted); white-space: nowrap; width: 1%;
 .sticky-live { position: sticky; top: calc(54px + env(safe-area-inset-top)); z-index: 4; box-shadow: 0 6px 14px rgba(0,0,0,.35); }
 table.plan td:first-child { white-space: normal; width: auto; color: var(--text); }
 table.plan td:last-child { white-space: nowrap; text-align: right; color: var(--muted); }
+
+/* Übungsanimation */
+.anim { background: #151a20; border-radius: 12px; margin-bottom: 8px; overflow: hidden; }
+.anim-svg { display: block; width: 100%; height: auto; }
+.anim-svg .skin { fill: #d3d9e1; stroke: #8f99a6; stroke-width: .9; stroke-linejoin: round; }
+.anim-svg .far { fill: #7f8996; stroke: #5f6874; stroke-width: .9; }
+.anim-svg .shoe { fill: #39414c; }
+.anim-svg .hair { fill: #39414c; }
+.anim-svg .musc { fill: #ff9f43; opacity: .92; }
+.anim-svg .frame { stroke: #3b4450; stroke-linecap: round; fill: none; }
+.anim-svg .frameFill { fill: #3b4450; }
+.anim-svg .lever { stroke: #56616f; stroke-linecap: round; }
+.anim-svg .pad { stroke: #2b323b; stroke-linecap: round; }
+.anim-svg .padhl { stroke: #3a434e; stroke-linecap: round; }
+.anim-svg .cable { stroke: #8d97a5; }
+.anim-svg .pulley { fill: #56616f; }
+.anim-svg .plateOff { fill: #3b4450; }
+.anim-svg .plateOn { fill: var(--accent); }
+.anim-svg .grip { stroke: var(--accent); fill: var(--accent); stroke-linecap: round; }
+.anim-svg .floor { stroke: #2a323c; stroke-linecap: round; }
+.anim-info { display: flex; flex-direction: column; gap: 2px; padding: 0 12px 10px; font-size: 13px; }
+.anim-m { color: #ff9f43; }
+.anim-svg .padFill { fill: #2b323b; }
+.anim-svg .padc { fill: #2b323b; stroke: #3a434e; stroke-width: 1.5; }

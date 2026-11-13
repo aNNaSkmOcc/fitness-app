@@ -1,6 +1,6 @@
 // App-Shell offline verfügbar machen. Daten (GitHub-API) gehen nie über den Cache.
-const CACHE = 'fitness-app-v3';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'fitness-app-v5';
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'anim.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
