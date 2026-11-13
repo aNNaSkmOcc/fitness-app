@@ -325,7 +325,9 @@ function renderSettings(first = false) {
   ${outbox.length ? `<div class="card muted">${outbox.length} Einheit(en) warten auf Upload.</div>` : ''}
   <button class="btn small" id="clearCache">Lokalen Zwischenspeicher leeren</button>`;
   $('#saveSet').onclick = async () => {
-    const [owner, repo] = $('#own').value.trim().split('/');
+    const [owner, repo] = $('#own').value.trim().split('/').map((x) => (x || '').trim());
+    if (!owner || !repo) { toast('Repo bitte als name/repo eintragen.'); return; }
+    if (!$('#tok').value.trim()) { toast('Bitte den Token eintragen.'); return; }
     settings = { ...settings, token: $('#tok').value.trim(), owner, repo, branch: $('#br').value.trim() || 'main', dir: $('#dir').value.trim().replace(/^\/|\/$/g, '') };
     save(LS.settings, settings);
     route = 'home'; cache = { plan: null, coach: null, sessions: {} }; save(LS.cache, cache);
