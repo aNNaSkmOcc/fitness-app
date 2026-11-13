@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Training">
+<title>Training</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <button id="navBack" class="icon-btn hidden" aria-label="Zurück">‹</button>
+  <h1 id="title">Training</h1>
+  <span id="syncState" class="sync" title="Sync-Status"></span>
+</header>
+<main id="view"></main>
+<div id="restBar" class="rest hidden">
+  <span>Pause</span><strong id="restTime">0:00</strong>
+  <button id="restPlus" class="chip">+15 s</button>
+  <button id="restSkip" class="chip">Weiter</button>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>
