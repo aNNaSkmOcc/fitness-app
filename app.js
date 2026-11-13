@@ -3,8 +3,8 @@
    Alles wird lokal zwischengespeichert, damit die App im Gym auch offline läuft. */
 
 const DEFAULTS = {
-  owner: 'aNNaSkmOcc',
-  repo: 'Enes2ndBrain',
+  owner: '',
+  repo: '',
   branch: 'main',
   dir: '03 Bereiche/Looksmaxxing/Training/Daten',
   token: ''
@@ -317,7 +317,7 @@ function renderSettings(first = false) {
     <label for="tok">GitHub-Token (fine-grained, nur Vault-Repo, Contents: Read &amp; Write)</label>
     <input type="password" id="tok" value="${esc(settings.token)}" autocomplete="off" placeholder="github_pat_…">
     <label for="own">Repo</label>
-    <input type="text" id="own" value="${esc(settings.owner)}/${esc(settings.repo)}">
+    <input type="text" id="own" value="${settings.owner ? esc(settings.owner) + "/" + esc(settings.repo) : ""}" placeholder="name/repo" autocapitalize="off" autocorrect="off">
     <label for="br">Branch</label><input type="text" id="br" value="${esc(settings.branch)}">
     <label for="dir">Ordner im Vault</label><input type="text" id="dir" value="${esc(settings.dir)}">
   </div>
