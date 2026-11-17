@@ -155,6 +155,37 @@ function applyReadiness(ex, t, r) {
     sets: t.sets.map((s) => (s.kg ? { ...s, kg: Math.max(0, round(s.kg - stepFor(ex, s.kg))) } : s)) };
 }
 
+// Echtzeit-Anpassung (wie MCI): nach jedem abgehakten Satz die restlichen Sätze der Übung neu setzen.
+// - Satz deutlich übertroffen (≥ 2 Wdh. über Ziel)  → Folgesätze eine Gewichtsstufe schwerer
+// - Satz deutlich verfehlt (≥ 2 Wdh. unter Ziel oder unter repsMin) → Folgesätze eine Stufe leichter
+// - Gewicht selbst geändert → Folgesätze ziehen um dieselbe Differenz mit
+// Sätze, die du schon selbst angepasst oder abgehakt hast, bleiben unangetastet.
+function adaptAfterSet(en, j, ex) {
+  const plan = en.target?.sets || [];
+  const P = (k) => plan[Math.min(k, plan.length - 1)] || { kg: null, reps: ex.repsMin };
+  const s = en.sets[j], p = P(j);
+  const kg = +s.kg || 0, reps = +s.reps || 0, goal = p.reps ?? ex.repsMin;
+  const step = stepFor(ex, kg);
+  let perf = 0;
+  if (kg && reps >= goal + 2) perf = 1;
+  else if (kg && (reps <= goal - 2 || reps < ex.repsMin)) perf = -1;
+  const shift = (p.kg != null && kg ? kg - p.kg : 0) + perf * step;
+  let changed = 0;
+  for (let k = j + 1; k < en.sets.length; k++) {
+    const t = en.sets[k];
+    if (t.ok || t.edited) continue;
+    const pk = P(k);
+    const nk = pk.kg != null ? Math.max(0, round(pk.kg + shift)) : kg ? Math.max(0, round(kg + perf * step)) : t.kg;
+    if (nk !== t.kg) changed++;
+    t.kg = nk; t.reps = pk.reps ?? t.reps; t.adj = pk.kg != null ? Math.sign(nk - pk.kg) : perf;
+  }
+  if (!changed) return;
+  const rest = 'die restlichen Sätze';
+  if (perf > 0) toast(`Satz ${j + 1} lief leicht → ${fmtKg(step)} kg mehr für ${rest}`);
+  else if (perf < 0) toast(`Satz ${j + 1} war schwer → ${fmtKg(step)} kg weniger für ${rest}`);
+  else toast(`${rest[0].toUpperCase() + rest.slice(1)} an dein Gewicht angepasst`);
+}
+
 // Kurzform für Ziele: "3× 60 kg × 12" oder "173/181/189 kg × 12"
 function fmtTarget(t) {
   const sets = t.sets || [{ kg: t.kg, reps: t.reps }];
@@ -351,7 +382,7 @@ function renderWorkout() {
       <div class="last">${last ? `Letztes Mal (${fmtDate(last.date)}): ${last.sets.map((s) => `${fmtKg(s.kg)}×${s.reps}`).join(', ')}` : 'Noch kein Verlauf'}</div>
       ${en.sets.map((s, j) => `
         <div class="set ${s.ok ? 'ok' : ''}" data-j="${j}">
-          <span class="n">${j + 1}</span>
+          <span class="n">${j + 1}${!s.ok && s.adj ? `<b class="adj ${s.adj > 0 ? 'up' : 'down'}">${s.adj > 0 ? '↑' : '↓'}</b>` : ''}</span>
           <div class="val"><div class="stepper"><button data-act="kg-">−</button><input inputmode="decimal" data-f="kg" value="${s.kg ?? ''}" placeholder="kg"><button data-act="kg+">+</button></div><span class="unit">kg</span></div>
           <div class="val"><div class="stepper"><button data-act="r-">−</button><input inputmode="numeric" data-f="reps" value="${s.reps ?? ''}"><button data-act="r+">+</button></div><span class="unit">Wdh.</span></div>
           <button class="check" data-act="ok">✓</button>
@@ -370,11 +401,12 @@ function renderWorkout() {
       const b = ev.target.closest('[data-act]'); if (!b) return;
       const act = b.dataset.act, row = b.closest('.set'), s = row ? en.sets[+row.dataset.j] : null;
       const step = ex.step || 2.5;
+      if (s && ['kg+', 'kg-', 'r+', 'r-'].includes(act)) s.edited = true;
       if (act === 'kg+') s.kg = +((+s.kg || 0) + step).toFixed(2);
       if (act === 'kg-') s.kg = Math.max(0, +((+s.kg || 0) - step).toFixed(2));
       if (act === 'r+') s.reps = (+s.reps || 0) + 1;
       if (act === 'r-') s.reps = Math.max(0, (+s.reps || 0) - 1);
-      if (act === 'ok') { s.ok = !s.ok; if (s.ok) { startRest(ex.rest || 90); const nxt = en.sets.find((x) => !x.ok); if (nxt && nxt !== s && (nxt.kg == null)) nxt.kg = s.kg; } }
+      if (act === 'ok') { s.ok = !s.ok; if (s.ok) { startRest(ex.rest || 90); adaptAfterSet(en, +row.dataset.j, ex); } }
       if (act === 'add') { const l = en.sets[en.sets.length - 1]; en.sets.push({ kg: l.kg, reps: l.reps, ok: false }); }
       if (act === 'del') en.sets.pop();
       if (act === 'hint') { openHints.has(en.id) ? openHints.delete(en.id) : openHints.add(en.id); }
@@ -385,6 +417,7 @@ function renderWorkout() {
       const s = en.sets[+inp.closest('.set').dataset.j];
       const v = inp.value.replace(',', '.').trim();
       s[inp.dataset.f] = v === '' ? null : +v;
+      s.edited = true;
       save(LS.draft, draft);
     });
   });

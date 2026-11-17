@@ -51,6 +51,9 @@ main { padding: 14px; max-width: 640px; margin: 0 auto; }
 
 .set { display: grid; grid-template-columns: 16px 1.2fr 1fr 46px; gap: 6px; align-items: center; margin-top: 10px; }
 .set .n { color: var(--muted); font-size: 14px; text-align: center; }
+.set .n .adj { display: block; font-size: 13px; line-height: 1; }
+.set .n .adj.up { color: var(--good); }
+.set .n .adj.down { color: #f0a050; }
 .stepper { display: grid; grid-template-columns: 34px 1fr 34px; background: var(--card2); border-radius: 12px; overflow: hidden; }
 .stepper button { border: 0; background: none; color: var(--text); font-size: 22px; height: 48px; }
 .stepper button:active { background: #2e3742; }
