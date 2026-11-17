@@ -106,24 +106,62 @@ function lastEntry(exId) {
   return null;
 }
 
-// Vorgabe: Coach (falls neuer als letzte Einheit der Übung) → sonst Double Progression → sonst Startgewicht
+// Vorgaben pro Satz (wie MCI): jeder Satz hat sein eigenes Gewicht + Wdh.-Ziel.
+// Reihenfolge: Coach (falls neuer als letzte Einheit der Übung) → sonst Steigerung pro Satz → sonst Startgewicht.
+const stepFor = (ex, kg) => (kg >= 100 ? Math.max(5, ex.step || 5) : ex.step || 2.5);
+const round = (kg) => +(+kg).toFixed(2);
+
+// Ein Satz der letzten Einheit → Ziel für denselben Satz beim nächsten Mal (Double Progression pro Satz)
+function progressSet(ex, s) {
+  const kg = +s.kg || 0, reps = +s.reps || 0;
+  if (!kg) return { kg: null, reps: Math.min(ex.repsMax, Math.max(ex.repsMin, reps + 1)) };
+  const step = stepFor(ex, kg);
+  if (reps >= ex.repsMax) return { kg: round(kg + step), reps: ex.repsMin, up: true };
+  if (reps < ex.repsMin - 2 && kg > step) return { kg: round(kg - step), reps: ex.repsMin, down: true };
+  return { kg, reps: Math.min(ex.repsMax, Math.max(ex.repsMin, reps + 1)) };
+}
+
+// Bringt eine Liste von Satz-Zielen auf genau ex.sets Sätze (bei mehr Sätzen zählen die letzten = Arbeitssätze)
+function fitSets(ex, sets) {
+  const n = ex.sets || sets.length || 3;
+  const out = sets.slice(-n);
+  while (out.length < n) out.push({ ...(out[out.length - 1] || { kg: ex.startKg ?? null, reps: ex.repsMin }) });
+  return out.map((s) => ({ kg: s.kg ?? null, reps: s.reps ?? ex.repsMin }));
+}
+
 function targetFor(ex) {
   const last = lastEntry(ex.id);
   const coach = cache.coach;
   const ct = coach?.targets?.[ex.id];
-  if (ct && (!last || coach.setAt > last.date)) return { kg: ct.kg ?? null, reps: ct.reps ?? ex.repsMin, note: ct.note || '', src: 'Coach' };
-  if (last) {
-    const kg = Math.max(...last.sets.map((s) => +s.kg || 0)) || null;
-    const atKg = last.sets.filter((s) => (+s.kg || 0) === (kg || 0));
-    const allTop = atKg.length >= ex.sets && atKg.every((s) => s.reps >= ex.repsMax);
-    if (allTop && kg != null) {
-      const step = kg >= 100 ? Math.max(5, ex.step || 5) : ex.step || 2.5;
-      return { kg: kg + step, reps: ex.repsMin, note: 'Obere Range geschafft → mehr Gewicht', src: 'Auto' };
-    }
-    const minReps = Math.min(...atKg.map((s) => s.reps));
-    return { kg, reps: Math.min(ex.repsMax, Math.max(ex.repsMin, minReps + 1)), note: '', src: 'Auto' };
+  if (ct && (!last || coach.setAt > last.date)) {
+    const sets = Array.isArray(ct.sets) ? ct.sets : [{ kg: ct.kg ?? null, reps: ct.reps ?? ex.repsMin }];
+    return { sets: fitSets(ex, sets), note: ct.note || '', src: 'Coach' };
   }
-  return { kg: ex.startKg ?? null, reps: ex.repsMin, note: ex.startKg == null ? 'Gewicht selbst finden' : '', src: 'Start' };
+  if (last) {
+    const prog = fitSets(ex, last.sets).map((s) => progressSet(ex, s));
+    const ups = prog.filter((s) => s.up).length, downs = prog.filter((s) => s.down).length;
+    const n = (k) => (k === 1 ? '1 Satz' : `${k} Sätzen`);
+    const note = ups ? `Mehr Gewicht in ${n(ups)}` : downs ? `Leichter in ${n(downs)}` : '';
+    return { sets: prog.map(({ kg, reps }) => ({ kg, reps })), note, src: 'Auto' };
+  }
+  return { sets: fitSets(ex, []), note: ex.startKg == null ? 'Gewicht selbst finden' : '', src: 'Start' };
+}
+
+// Tagesform: bei Müdigkeit/Muskelkater/schlechtem Schlaf eine Gewichtsstufe leichter
+const READINESS = { normal: { label: '🙂 Normal', note: '' }, muede: { label: '😴 Müde / Muskelkater', note: 'Tagesform: eine Stufe leichter' } };
+function applyReadiness(ex, t, r) {
+  if (r !== 'muede') return t;
+  return { ...t, note: [t.note, READINESS.muede.note].filter(Boolean).join(' · '),
+    sets: t.sets.map((s) => (s.kg ? { ...s, kg: Math.max(0, round(s.kg - stepFor(ex, s.kg))) } : s)) };
+}
+
+// Kurzform für Ziele: "3× 60 kg × 12" oder "173/181/189 kg × 12"
+function fmtTarget(t) {
+  const sets = t.sets || [{ kg: t.kg, reps: t.reps }];
+  const kgs = sets.map((s) => fmtKg(s.kg)), reps = sets.map((s) => s.reps ?? '–');
+  const same = (a) => a.every((x) => x === a[0]);
+  if (same(kgs) && same(reps)) return `${sets.length}× ${kgs[0]} kg × ${reps[0]}`;
+  return `${same(kgs) ? kgs[0] : kgs.join('/')} kg × ${same(reps) ? reps[0] : reps.join('/')}`;
 }
 
 function suggestedDay() {
@@ -156,6 +194,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* ---------------- Views ---------------- */
 let route = draft ? 'workout' : 'home', routeArg = null, clockTimer = null;
+let readiness = 'normal'; // Tagesform für die nächste Einheit (Vorschau)
 function go(r, arg = null) { route = r; routeArg = arg; render(); window.scrollTo(0, 0); }
 $('#navBack').onclick = () => go('home');
 
@@ -209,18 +248,23 @@ function renderPreview() {
   $('#title').textContent = `Tag ${day}`;
   const blocked = draft && draft.day !== day;
   const list = d.exercises.map((ex) => {
-    const t = targetFor(ex);
-    return `<tr><td>${esc(ex.name)}</td><td>${ex.sets}× ${fmtKg(t.kg)} kg × ${t.reps}</td></tr>`;
+    const t = applyReadiness(ex, targetFor(ex), readiness);
+    return `<tr><td>${esc(ex.name)}</td><td>${fmtTarget(t)}</td></tr>`;
   }).join('');
+  const form = Object.entries(READINESS).map(([k, r]) => `<button class="chip ${k === readiness ? 'on' : ''}" data-r="${k}">${r.label}</button>`).join('');
   view.innerHTML = `
     ${blocked ? `<div class="card live"><div class="live-head"><span class="dot"></span><strong>Tag ${esc(draft.day)} läuft noch</strong></div>
       <div class="muted">Erst Tag ${esc(draft.day)} speichern oder verwerfen, dann kannst du Tag ${esc(day)} starten.</div>
       <button class="btn good" id="resume" style="margin:10px 0 0">Zu Tag ${esc(draft.day)}</button></div>` : ''}
-    <div class="card"><h2>${esc(d.title || 'Tag ' + day)}</h2><div class="muted">${d.exercises.length} Übungen · Ziele für heute</div>
+    ${blocked ? '' : `<div class="card"><div class="muted">Wie fühlst du dich heute? (Schlaf, Muskelkater)</div><div class="ex-actions">${form}</div></div>`}
+    <div class="card"><h2>${esc(d.title || 'Tag ' + day)}</h2><div class="muted">${d.exercises.length} Übungen · Ziele für heute (Gewicht pro Satz)</div>
       <table class="hist plan" style="margin-top:8px">${list}</table></div>
     ${blocked ? '' : '<button class="btn primary" id="start">▶ Start</button>'}`;
   if (blocked) $('#resume').onclick = () => go('workout');
-  else $('#start').onclick = () => startWorkout(day);
+  else {
+    $('#start').onclick = () => startWorkout(day);
+    view.querySelectorAll('[data-r]').forEach((b) => (b.onclick = () => { readiness = b.dataset.r; renderPreview(); }));
+  }
 }
 
 /* ---------------- Wochenkalender ---------------- */
@@ -275,12 +319,13 @@ function bindFooter() { $('#toSettings').onclick = () => go('settings'); $('#doS
 function startWorkout(day) {
   const d = cache.plan.days[day];
   draft = {
-    day, startedAt: new Date().toISOString(), note: '',
+    day, startedAt: new Date().toISOString(), note: '', readiness,
     entries: d.exercises.map((ex) => {
-      const t = targetFor(ex);
-      return { id: ex.id, name: ex.name, target: t, sets: Array.from({ length: ex.sets }, () => ({ kg: t.kg, reps: t.reps, ok: false })) };
+      const t = applyReadiness(ex, targetFor(ex), readiness);
+      return { id: ex.id, name: ex.name, target: t, sets: t.sets.map((s) => ({ kg: s.kg, reps: s.reps, ok: false })) };
     })
   };
+  readiness = 'normal';
   save(LS.draft, draft); keepAwake(); go('workout');
 }
 
@@ -302,7 +347,7 @@ function renderWorkout() {
     const allOk = en.sets.length && en.sets.every((s) => s.ok);
     return `<div class="card ex ${allOk ? 'done' : ''}" data-i="${i}">
       <div class="ex-head"><h2>${esc(en.name)}</h2><span class="muted">${en.sets.length}×${ex.repsMin}–${ex.repsMax}</span></div>
-      <div class="target">Ziel: ${fmtKg(t.kg)} kg × ${t.reps}${t.note ? ' · ' + esc(t.note) : ''}</div>
+      <div class="target">Ziel: ${fmtTarget(t)}${t.note ? ' · ' + esc(t.note) : ''}</div>
       <div class="last">${last ? `Letztes Mal (${fmtDate(last.date)}): ${last.sets.map((s) => `${fmtKg(s.kg)}×${s.reps}`).join(', ')}` : 'Noch kein Verlauf'}</div>
       ${en.sets.map((s, j) => `
         <div class="set ${s.ok ? 'ok' : ''}" data-j="${j}">
@@ -365,7 +410,7 @@ function finishWorkout() {
     file: `${local}_${pad(now.getHours())}${pad(now.getMinutes())}_${draft.day}.json`,
     date: now.toISOString(), day: draft.day, startedAt: draft.startedAt,
     durationMin: Math.round((now - new Date(draft.startedAt)) / 60000),
-    entries, note: draft.note.trim()
+    entries, note: draft.note.trim(), readiness: draft.readiness || 'normal'
   };
   outbox.push(s); save(LS.outbox, outbox);
   draft = null; localStorage.removeItem(LS.draft); stopRest();

@@ -63,6 +63,7 @@ main { padding: 14px; max-width: 640px; margin: 0 auto; }
 .set.ok .stepper { background: #1e3a2f; }
 .ex-actions { display: flex; gap: 8px; margin-top: 10px; }
 .chip { border: 0; border-radius: 999px; padding: 8px 14px; background: var(--card2); color: var(--text); font-size: 14px; }
+.chip.on { background: var(--accent); color: #04121f; font-weight: 600; }
 
 textarea, input[type=text], input[type=password] { width: 100%; background: var(--card2); color: var(--text);
   border: 1px solid #333d49; border-radius: 10px; padding: 12px; font-size: 16px; font-family: inherit; }
